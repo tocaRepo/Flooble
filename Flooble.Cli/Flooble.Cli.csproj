@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Flooble.Core\Flooble.Core.csproj" />
+    <ProjectReference Include="..\Flooble.Tools\Flooble.Tools.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI.Foundry" Version="1.11.1-preview.260625.1" />
+    <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.11.1" />
+    <PackageReference Include="OpenAI" Version="2.11.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
