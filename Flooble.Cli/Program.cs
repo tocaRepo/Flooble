@@ -13,16 +13,36 @@ var writeTools = new WriteTools(configuration);
 var readFileTool = AIFunctionFactory.Create(readTools.ReadFile);
 var writeFileTool = AIFunctionFactory.Create(writeTools.WriteFile);
 
-var agent = new Agent(
-    configuration,
-    "openai/gpt-oss-120b",
-    """
-    You are a friendly assistant running inside Flooble.
-    Use the read_file tool when the user asks about a local file.
-    Use the write_file tool when the user asks you to create or update a local file.
-    Keep your answers brief.
-    """,
-    [readFileTool, writeFileTool]);
+var workflowPath = Path.Combine(AppContext.BaseDirectory, "example.workflow.yaml");
+var workflow = WorkflowLoader.LoadFromFile(workflowPath);
 
-var response = await agent.GetAgent().RunAsync("Read test.txt and summarize it.");
-Console.WriteLine(response);
+var handlers = WorkflowHandlers.CreateDefault(
+    readTools.ReadFile,
+    writeTools.WriteFile,
+    async (instructions, text, cancellationToken) =>
+    {
+    
+        var agent = new Agent(
+            configuration,
+            "openai/gpt-oss-120b",
+            instructions,
+            [readFileTool, writeFileTool]);
+
+        var userMessage = new ChatMessage(
+            ChatRole.User,
+            text);
+
+        var response = await agent.GetAgent().RunAsync(userMessage, cancellationToken: cancellationToken);
+        return response.Text;
+    });
+
+var interpreter = new WorkflowInterpreter(handlers);
+
+var result = await interpreter.ExecuteAsync(workflow);
+
+foreach (var step in result.Steps)
+{
+    Console.WriteLine($"[{step.Key}]");
+    Console.WriteLine(step.Value.Output);
+    Console.WriteLine();
+}
