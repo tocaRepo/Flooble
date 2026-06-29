@@ -4,6 +4,10 @@
         "ReadPermissions":{
             "type":"local",
             "allowedPaths":["."]
+        },
+        "WritePermissions":{
+            "type":"local",
+            "allowedPaths":["."]
         }
     }
 

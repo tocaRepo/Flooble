@@ -9,7 +9,9 @@ var configuration = new ConfigurationBuilder()
     .Build();
 
 var readTools = new ReadTools(configuration);
+var writeTools = new WriteTools(configuration);
 var readFileTool = AIFunctionFactory.Create(readTools.ReadFile);
+var writeFileTool = AIFunctionFactory.Create(writeTools.WriteFile);
 
 var agent = new Agent(
     configuration,
@@ -17,9 +19,10 @@ var agent = new Agent(
     """
     You are a friendly assistant running inside Flooble.
     Use the read_file tool when the user asks about a local file.
+    Use the write_file tool when the user asks you to create or update a local file.
     Keep your answers brief.
     """,
-    [readFileTool]);
+    [readFileTool, writeFileTool]);
 
 var response = await agent.GetAgent().RunAsync("Read test.txt and summarize it.");
 Console.WriteLine(response);
