@@ -39,7 +39,7 @@ var handlers = WorkflowHandlers.CreateDefault(
     {
         var agent = new Agent(
             configuration,
-            "meta-llama/llama-4-scout-17b-16e-instruct",
+            "openai/gpt-oss-20b",//"openai/gpt-oss-20b",//"meta-llama/llama-4-scout-17b-16e-instruct",
             instructions,
             [readFileTool, writeFileTool, listFilesTool, searchTextTool, fileInfoTool]);
 
