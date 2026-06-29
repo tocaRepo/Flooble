@@ -1,0 +1,6 @@
+{
+    "Agent":{
+        "API_ENDPOINT":"https://api.groq.com/openai/v1"
+    }
+
+}
