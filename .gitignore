@@ -1,0 +1,67 @@
+# Build output
+bin/
+obj/
+out/
+publish/
+artifacts/
+
+# User/machine-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+project.lock.json
+project.assets.json
+
+# Test results / coverage
+TestResults/
+coverage/
+coverage.xml
+coverage.cobertura.xml
+*.coverage
+*.coveragexml
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.Development.local.json
+secrets.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# JetBrains/ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# MSBuild
+*.binlog
+
+# Generated files
+Generated/
+*.g.cs
+*.generated.cs

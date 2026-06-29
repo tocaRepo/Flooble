@@ -1,0 +1,15 @@
+name: summarize-file
+input:
+  path: test.txt
+
+steps:
+  - id: read
+    tool: read_file
+    with:
+      path: "${input.path}"
+
+  - id: summarize
+    agent: summarize the text in your own words
+    with:
+      text: "${steps.read.output}"
+
