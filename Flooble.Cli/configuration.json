@@ -1,6 +1,10 @@
 {
     "Agent":{
-        "API_ENDPOINT":"https://api.groq.com/openai/v1"
+        "API_ENDPOINT":"https://api.groq.com/openai/v1",
+        "ReadPermissions":{
+            "type":"local",
+            "allowedPaths":["."]
+        }
     }
 
 }

@@ -1,4 +1,4 @@
-using Flooble.Core;
+﻿using Flooble.Core;
 using Flooble.Tools;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
@@ -8,7 +8,7 @@ var configuration = new ConfigurationBuilder()
     .AddJsonFile("configuration.json", optional: false, reloadOnChange: false)
     .Build();
 
-var readTools = new ReadTools();
+var readTools = new ReadTools(configuration);
 var readFileTool = AIFunctionFactory.Create(readTools.ReadFile);
 
 var agent = new Agent(
