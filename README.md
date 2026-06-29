@@ -1,7 +1,7 @@
 # Flooble
 
 Flooble is a small .NET deterministic workflow runner for YAML-defined automation steps.
-It supports file tools and agent-powered steps, with simple placeholder
+It supports file discovery tools and agent-powered steps, with simple placeholder
 resolution between inputs and previous step outputs.
 
 ## What It Does
@@ -9,7 +9,7 @@ resolution between inputs and previous step outputs.
 - Loads a workflow from YAML.
 - Resolves `${input.*}` and `${steps.<stepId>.output}` references.
 - Executes steps in order.
-- Provides built-in `read_file`, `write_file`, and `agent` handlers.
+- Provides built-in `read_file`, `write_file`, `list_files`, `search_text`, `file_info`, and `agent` handlers.
 - Uses a configurable OpenAI-compatible endpoint for agent steps.
 
 ## Solution Layout
@@ -74,6 +74,9 @@ steps:
 
 - `tool: read_file` reads a text file using the configured permissions.
 - `tool: write_file` writes text to a file using the configured permissions.
+- `tool: list_files` returns a compact tree for a directory, with ignore patterns and maximum depth.
+- `tool: search_text` searches text files by substring, regex, or glob and returns file/line snippets.
+- `tool: file_info` returns size, modified time, extension, and SHA-256 hash for one or more files.
 - `agent: ...` runs an agent step using the provided instructions.
 
 ### Placeholder Syntax

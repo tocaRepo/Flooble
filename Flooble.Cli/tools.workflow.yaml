@@ -1,0 +1,57 @@
+name: discovery-tools-smoke-test
+input:
+  root: .
+  output_path: tool-smoke-test.txt
+  search_query: beta
+
+steps:
+  - id: list_workspace
+    tool: list_files
+    with:
+      path: "${input.root}"
+      max_depth: "2"
+      ignore: "bin,obj,.git"
+
+  - id: write_sample
+    tool: write_file
+    with:
+      path: "${input.output_path}"
+      content: |-
+        alpha
+        beta
+        gamma
+        beta again
+
+  - id: read_back
+    tool: read_file
+    with:
+      path: "${input.output_path}"
+
+  - id: search_sample
+    tool: search_text
+    with:
+      path: "${input.output_path}"
+      query: "${input.search_query}"
+      mode: substring
+      max_results: "5"
+
+  - id: file_metadata
+    tool: file_info
+    with:
+      paths: "${input.output_path}"
+
+  - id: summarize
+    agent: summarize what happened in the previous steps and list the tools that succeeded
+    with:
+      text: |-
+        Workspace tree:
+        ${steps.list_workspace.output}
+
+        File contents:
+        ${steps.read_back.output}
+
+        Search results:
+        ${steps.search_sample.output}
+
+        File metadata:
+        ${steps.file_metadata.output}
