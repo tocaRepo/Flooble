@@ -46,6 +46,13 @@ resolution between inputs and previous step outputs.
    dotnet run --project Flooble.Cli
    ```
 
+   To run a different workflow file, pass its name or path as the first
+   argument. For example:
+
+   ```powershell
+   dotnet run --project Flooble.Cli -- review.workflow.yaml
+   ```
+
 ## Workflow Format
 
 Workflows are YAML documents with a name, optional inputs, and an ordered list

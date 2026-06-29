@@ -17,7 +17,16 @@ var fileInfoTool = AIFunctionFactory.Create(discoveryTools.FileInfo);
 var readFileTool = AIFunctionFactory.Create(readTools.ReadFile);
 var writeFileTool = AIFunctionFactory.Create(writeTools.WriteFile);
 
-var workflowPath = Path.Combine(AppContext.BaseDirectory, "tools.workflow.yaml");
+var workflowName = args.FirstOrDefault();
+var workflowPath = string.IsNullOrWhiteSpace(workflowName)
+    ? Path.Combine(AppContext.BaseDirectory, "review.workflow.yaml")
+    : Path.IsPathRooted(workflowName)
+        ? workflowName
+        : Path.Combine(AppContext.BaseDirectory, workflowName);
+
+if (!File.Exists(workflowPath))
+    throw new FileNotFoundException($"Workflow file not found: {workflowPath}", workflowPath);
+
 var workflow = WorkflowLoader.LoadFromFile(workflowPath);
 
 var handlers = WorkflowHandlers.CreateDefault(
@@ -30,7 +39,7 @@ var handlers = WorkflowHandlers.CreateDefault(
     {
         var agent = new Agent(
             configuration,
-            "openai/gpt-oss-120b",
+            "meta-llama/llama-4-scout-17b-16e-instruct",
             instructions,
             [readFileTool, writeFileTool, listFilesTool, searchTextTool, fileInfoTool]);
 
