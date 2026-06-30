@@ -1,6 +1,4 @@
-﻿using Flooble.Core;
-using Flooble.Tools;
-using Microsoft.Extensions.AI;
+using Flooble.Core;
 using Microsoft.Extensions.Configuration;
 
 var configuration = new ConfigurationBuilder()
@@ -8,14 +6,7 @@ var configuration = new ConfigurationBuilder()
     .AddJsonFile("configuration.json", optional: false, reloadOnChange: false)
     .Build();
 
-var discoveryTools = new DiscoveryTools(configuration);
-var readTools = new ReadTools(configuration);
-var writeTools = new WriteTools(configuration);
-var listFilesTool = AIFunctionFactory.Create(discoveryTools.ListFiles);
-var searchTextTool = AIFunctionFactory.Create(discoveryTools.SearchText);
-var fileInfoTool = AIFunctionFactory.Create(discoveryTools.FileInfo);
-var readFileTool = AIFunctionFactory.Create(readTools.ReadFile);
-var writeFileTool = AIFunctionFactory.Create(writeTools.WriteFile);
+var runtime = new FloobleRuntime(configuration);
 
 var workflowName = args.FirstOrDefault();
 var workflowPath = string.IsNullOrWhiteSpace(workflowName)
@@ -27,33 +18,7 @@ var workflowPath = string.IsNullOrWhiteSpace(workflowName)
 if (!File.Exists(workflowPath))
     throw new FileNotFoundException($"Workflow file not found: {workflowPath}", workflowPath);
 
-var workflow = WorkflowLoader.LoadFromFile(workflowPath);
-
-var handlers = WorkflowHandlers.CreateDefault(
-    readTools.ReadFile,
-    discoveryTools.ListFiles,
-    discoveryTools.SearchText,
-    discoveryTools.FileInfo,
-    writeTools.WriteFile,
-    async (instructions, text, cancellationToken) =>
-    {
-        var agent = new Agent(
-            configuration,
-            "openai/gpt-oss-20b",//"openai/gpt-oss-20b",//"meta-llama/llama-4-scout-17b-16e-instruct",
-            instructions,
-            [readFileTool, writeFileTool, listFilesTool, searchTextTool, fileInfoTool]);
-
-        var userMessage = new ChatMessage(
-            ChatRole.User,
-            text);
-
-        var response = await agent.GetAgent().RunAsync(userMessage, cancellationToken: cancellationToken);
-        return response.Text;
-    });
-
-var interpreter = new WorkflowInterpreter(handlers);
-
-var result = await interpreter.ExecuteAsync(workflow);
+var result = await runtime.RunAsync(workflowPath);
 
 foreach (var step in result.Steps)
 {

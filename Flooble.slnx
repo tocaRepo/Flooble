@@ -1,5 +1,7 @@
 <Solution>
   <Project Path="Flooble.Cli/Flooble.Cli.csproj" />
   <Project Path="Flooble.Core/Flooble.Core.csproj" />
+  <Project Path="Flooble.GUI/Flooble.GUI.csproj" />
+  <Project Path="Flooble.Web/Flooble.Web.csproj" />
   <Project Path="Flooble.Tools/Flooble.Tools.csproj" />
 </Solution>

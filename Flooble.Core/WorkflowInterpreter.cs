@@ -6,6 +6,24 @@ public delegate Task<string> WorkflowHandler(
     IReadOnlyDictionary<string, string> arguments,
     CancellationToken cancellationToken);
 
+public enum WorkflowRunEventKind
+{
+    WorkflowStarted,
+    StepStarted,
+    StepCompleted,
+    StepFailed,
+    WorkflowCompleted,
+    WorkflowFailed
+}
+
+public sealed record WorkflowRunEvent(
+    WorkflowRunEventKind Kind,
+    DateTimeOffset TimestampUtc,
+    string? StepId = null,
+    string? HandlerName = null,
+    string? Message = null,
+    IReadOnlyDictionary<string, object?>? Data = null);
+
 public sealed class WorkflowStepResult
 {
     public string Output { get; set; } = "";
@@ -32,6 +50,7 @@ public sealed class WorkflowInterpreter
     public async Task<WorkflowRunResult> ExecuteAsync(
         WorkflowDefinition workflow,
         IReadOnlyDictionary<string, string>? input = null,
+        Func<WorkflowRunEvent, CancellationToken, ValueTask>? onEvent = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(workflow);
@@ -51,35 +70,139 @@ public sealed class WorkflowInterpreter
 
         var stepResults = new Dictionary<string, WorkflowStepResult>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var step in workflow.Steps)
+        await PublishEventAsync(
+            onEvent,
+            new WorkflowRunEvent(
+                WorkflowRunEventKind.WorkflowStarted,
+                DateTimeOffset.UtcNow,
+                Message: $"Workflow '{workflow.Name}' started.",
+                Data: new Dictionary<string, object?>
+                {
+                    ["workflowName"] = workflow.Name,
+                    ["stepCount"] = workflow.Steps.Count
+                }),
+            cancellationToken).ConfigureAwait(false);
+
+        try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (string.IsNullOrWhiteSpace(step.Id))
-                throw new InvalidOperationException("Every workflow step needs an id.");
-
-            if (stepResults.ContainsKey(step.Id))
-                throw new InvalidOperationException($"Duplicate workflow step id: {step.Id}");
-
-            var handlerName = GetHandlerName(step, out var handlerArguments);
-            if (!_handlers.TryGetValue(handlerName, out var handler))
-                throw new InvalidOperationException($"Unknown workflow handler: {handlerName}");
-
-            var resolvedArguments = ResolveDictionary(handlerArguments, runtimeInput, stepResults);
-            var output = await handler(resolvedArguments, cancellationToken).ConfigureAwait(false) ?? string.Empty;
-
-            stepResults[step.Id] = new WorkflowStepResult
+            foreach (var step in workflow.Steps)
             {
-                Output = output
-            };
-        }
+                cancellationToken.ThrowIfCancellationRequested();
 
-        return new WorkflowRunResult
+                if (string.IsNullOrWhiteSpace(step.Id))
+                    throw new InvalidOperationException("Every workflow step needs an id.");
+
+                if (stepResults.ContainsKey(step.Id))
+                    throw new InvalidOperationException($"Duplicate workflow step id: {step.Id}");
+
+                var handlerName = "";
+
+                try
+                {
+                    handlerName = GetHandlerName(step, out var handlerArguments);
+
+                    await PublishEventAsync(
+                        onEvent,
+                        new WorkflowRunEvent(
+                            WorkflowRunEventKind.StepStarted,
+                            DateTimeOffset.UtcNow,
+                            StepId: step.Id,
+                            HandlerName: handlerName,
+                            Message: $"Step '{step.Id}' started.",
+                            Data: new Dictionary<string, object?>
+                            {
+                                ["workflowName"] = workflow.Name
+                            }),
+                        cancellationToken).ConfigureAwait(false);
+
+                    if (!_handlers.TryGetValue(handlerName, out var handler))
+                        throw new InvalidOperationException($"Unknown workflow handler: {handlerName}");
+
+                    var resolvedArguments = ResolveDictionary(handlerArguments, runtimeInput, stepResults);
+                    var output = await handler(resolvedArguments, cancellationToken).ConfigureAwait(false) ?? string.Empty;
+
+                    stepResults[step.Id] = new WorkflowStepResult
+                    {
+                        Output = output
+                    };
+
+                    await PublishEventAsync(
+                        onEvent,
+                        new WorkflowRunEvent(
+                            WorkflowRunEventKind.StepCompleted,
+                            DateTimeOffset.UtcNow,
+                            StepId: step.Id,
+                            HandlerName: handlerName,
+                            Message: $"Step '{step.Id}' completed.",
+                            Data: new Dictionary<string, object?>
+                            {
+                                ["workflowName"] = workflow.Name,
+                                ["outputLength"] = output.Length
+                            }),
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    await PublishEventAsync(
+                        onEvent,
+                        new WorkflowRunEvent(
+                            WorkflowRunEventKind.StepFailed,
+                            DateTimeOffset.UtcNow,
+                            StepId: step.Id,
+                            HandlerName: handlerName,
+                            Message: $"Step '{step.Id}' failed.",
+                            Data: new Dictionary<string, object?>
+                            {
+                                ["workflowName"] = workflow.Name,
+                                ["exceptionType"] = ex.GetType().FullName,
+                                ["exceptionMessage"] = ex.Message
+                            }),
+                        cancellationToken).ConfigureAwait(false);
+
+                    throw;
+                }
+            }
+
+            var result = new WorkflowRunResult
+            {
+                Name = workflow.Name,
+                Input = runtimeInput,
+                Steps = stepResults
+            };
+
+            await PublishEventAsync(
+                onEvent,
+                new WorkflowRunEvent(
+                    WorkflowRunEventKind.WorkflowCompleted,
+                    DateTimeOffset.UtcNow,
+                    Message: $"Workflow '{workflow.Name}' completed.",
+                    Data: new Dictionary<string, object?>
+                    {
+                        ["workflowName"] = workflow.Name,
+                        ["completedSteps"] = stepResults.Count
+                    }),
+                cancellationToken).ConfigureAwait(false);
+
+            return result;
+        }
+        catch (Exception ex)
         {
-            Name = workflow.Name,
-            Input = runtimeInput,
-            Steps = stepResults
-        };
+            await PublishEventAsync(
+                onEvent,
+                new WorkflowRunEvent(
+                    WorkflowRunEventKind.WorkflowFailed,
+                    DateTimeOffset.UtcNow,
+                    Message: $"Workflow '{workflow.Name}' failed.",
+                    Data: new Dictionary<string, object?>
+                    {
+                        ["workflowName"] = workflow.Name,
+                        ["exceptionType"] = ex.GetType().FullName,
+                        ["exceptionMessage"] = ex.Message
+                    }),
+                cancellationToken).ConfigureAwait(false);
+
+            throw;
+        }
     }
 
     private static string GetHandlerName(WorkflowStep step, out IReadOnlyDictionary<string, string> handlerArguments)
@@ -150,5 +273,31 @@ public sealed class WorkflowInterpreter
 
             throw new InvalidOperationException($"Unsupported workflow expression: {expression}");
         });
+    }
+
+    private static ValueTask PublishEventAsync(
+        Func<WorkflowRunEvent, CancellationToken, ValueTask>? onEvent,
+        WorkflowRunEvent runEvent,
+        CancellationToken cancellationToken)
+    {
+        if (onEvent is null)
+            return ValueTask.CompletedTask;
+
+        return InvokeObserverAsync(onEvent, runEvent, cancellationToken);
+    }
+
+    private static async ValueTask InvokeObserverAsync(
+        Func<WorkflowRunEvent, CancellationToken, ValueTask> onEvent,
+        WorkflowRunEvent runEvent,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await onEvent(runEvent, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Observability hooks should not change workflow execution semantics.
+        }
     }
 }

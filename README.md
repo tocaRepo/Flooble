@@ -17,6 +17,11 @@ resolution between inputs and previous step outputs.
 - `Flooble.Core` contains the workflow model, loader, interpreter, and agent wrapper.
 - `Flooble.Tools` contains the file read/write tools used by the CLI.
 - `Flooble.Cli` is the sample console app that loads and runs the example workflow.
+- `Flooble.GUI` is a basic WPF chat app for talking to the configured agent.
+- `Flooble.Web` is the recommended cross-platform browser GUI for chat and workflows.
+
+`Flooble.Web` is browser-based and runs cross-platform. `Flooble.GUI` remains
+the Windows-only WPF app.
 
 ## Requirements
 
@@ -52,6 +57,33 @@ resolution between inputs and previous step outputs.
    ```powershell
    dotnet run --project Flooble.Cli -- review.workflow.yaml
    ```
+
+4. Run the GUI.
+
+   ```powershell
+   dotnet run --project Flooble.GUI
+   ```
+
+   The GUI uses the same `configuration.json` conventions as the CLI. Make sure
+   `Flooble.Cli/configuration.json` contains a valid `API_ENDPOINT` and either
+   `API_KEY` or the `GROQ_API_KEY` environment variable is available.
+
+5. Run the web app.
+
+   ```powershell
+   dotnet run --project Flooble.Web
+   ```
+
+   `Flooble.Web` is the recommended cross-platform GUI. It runs in the browser
+   and uses standard ASP.NET Core configuration sources:
+
+   - `appsettings.json`
+   - `appsettings.Development.json`
+   - environment variables
+
+   For local development, you can copy or mirror the settings from
+   `Flooble.Cli/configuration.json` into `Flooble.Web/appsettings.Development.json`
+   or let the web app reuse that file directly.
 
 ## Workflow Format
 
@@ -120,6 +152,19 @@ Permission types:
 
 - `local` limits access to the configured `allowedPaths`.
 - `global` allows access anywhere on disk.
+
+### Flooble.Web Configuration
+
+`Flooble.Web` accepts the same `Agent` configuration shape through standard
+ASP.NET Core sources:
+
+- `Agent:API_ENDPOINT`
+- `Agent:API_KEY`
+- `GROQ_API_KEY` if you want to keep using the existing environment variable
+- `Agent:ReadPermissions`
+- `Agent:WritePermissions`
+
+No API key should be committed to source control.
 
 ## Extending Flooble
 

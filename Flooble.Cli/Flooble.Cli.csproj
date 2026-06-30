@@ -2,7 +2,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Flooble.Core\Flooble.Core.csproj" />
-    <ProjectReference Include="..\Flooble.Tools\Flooble.Tools.csproj" />
   </ItemGroup>
 
   <ItemGroup>

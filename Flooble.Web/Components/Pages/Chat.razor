@@ -1,0 +1,178 @@
+@page "/chat"
+
+<PageTitle>Flooble Chat</PageTitle>
+
+<div class="page-grid">
+    <section class="hero-card">
+        <p class="eyebrow">Primary GUI</p>
+        <h1>Chat with Flooble from any browser</h1>
+        <p class="hero-copy">
+            This page uses the same <code>Agent</code> configuration conventions as the CLI and WPF app.
+            Messages are handled by <code>AgentChatService</code> and the transcript stays in memory for the current session.
+        </p>
+        <div class="hero-actions">
+            <a class="button-link" href="/workflows">Try workflows</a>
+            <button class="ghost-button" type="button" @onclick="ClearTranscriptAsync">Clear chat</button>
+        </div>
+    </section>
+
+    <section class="panel transcript-panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Chat</p>
+                <h2>Transcript</h2>
+            </div>
+            <div class="status-pill @(IsBusy ? "busy" : "ready")">
+                @(IsBusy ? "Thinking" : "Ready")
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="banner error-banner" role="alert">@ErrorMessage</div>
+        }
+
+        <div class="transcript" aria-live="polite">
+            @if (Messages.Count == 0)
+            {
+                <div class="empty-state">
+                    <h3>No messages yet</h3>
+                    <p>Send a message to start a chat with the configured agent.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var message in Messages)
+                {
+                    <article class="message-card @message.RoleClass">
+                        <div class="message-meta">
+                            <span>@message.Role</span>
+                            <span>@message.TimestampLocal.ToString("HH:mm")</span>
+                        </div>
+                        <div class="message-body">@message.Text</div>
+                    </article>
+                }
+            }
+        </div>
+
+        <form class="composer" @onsubmit="SendAsync" @onsubmit:preventDefault="true">
+            <label class="field-label" for="chat-input">Message</label>
+            <textarea id="chat-input"
+                      class="composer-input"
+                      rows="5"
+                      placeholder="Ask Flooble something about the repo, a workflow, or the current task."
+                      @bind="DraftText"
+                      @bind:event="oninput"
+                      @onkeydown="HandleComposerKeyDown"
+                      disabled="@IsBusy"></textarea>
+
+            <div class="composer-actions">
+                <button class="primary-button" type="submit" disabled="@(!CanSend)">Send</button>
+                <button class="secondary-button" type="button" @onclick="CancelAsync" disabled="@(!IsBusy)">Cancel</button>
+                <button class="secondary-button" type="button" @onclick="ClearTranscriptAsync" disabled="@IsBusy && Messages.Count == 0">Clear</button>
+            </div>
+        </form>
+
+        <p class="helper-text">
+            Tip: press <kbd>Ctrl</kbd>+<kbd>Enter</kbd> to send from the text area.
+        </p>
+    </section>
+
+    <aside class="sidebar-stack">
+        <ConfigHealthPanel />
+    </aside>
+</div>
+
+@code {
+    [Inject]
+    private AgentChatService AgentChatService { get; set; } = default!;
+
+    private readonly List<ChatMessageItem> Messages = new();
+    private CancellationTokenSource? _requestCts;
+    private string DraftText { get; set; } = string.Empty;
+    private string ErrorMessage { get; set; } = string.Empty;
+    private bool IsBusy { get; set; }
+
+    private bool CanSend => !IsBusy && !string.IsNullOrWhiteSpace(DraftText);
+
+    private async Task SendAsync()
+    {
+        var text = DraftText.Trim();
+        if (string.IsNullOrWhiteSpace(text) || IsBusy)
+            return;
+
+        Messages.Add(new ChatMessageItem("You", text, true));
+        DraftText = string.Empty;
+        ErrorMessage = string.Empty;
+        IsBusy = true;
+        StateHasChanged();
+
+        _requestCts?.Cancel();
+        _requestCts?.Dispose();
+        _requestCts = new CancellationTokenSource();
+
+        try
+        {
+            var response = await AgentChatService.SendAsync(text, _requestCts.Token);
+            Messages.Add(new ChatMessageItem("Flooble", response, false));
+        }
+        catch (OperationCanceledException)
+        {
+            ErrorMessage = "The request was canceled.";
+        }
+        catch (FileNotFoundException fileNotFound)
+        {
+            ErrorMessage = $"Configuration file not found: {fileNotFound.FileName}";
+        }
+        catch (UriFormatException)
+        {
+            ErrorMessage = "The API endpoint is not a valid URL.";
+        }
+        catch (InvalidOperationException invalidOperation)
+        {
+            ErrorMessage = invalidOperation.Message;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "The agent call failed."
+                : ex.Message;
+        }
+        finally
+        {
+            IsBusy = false;
+            _requestCts.Dispose();
+            _requestCts = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CancelAsync()
+    {
+        _requestCts?.Cancel();
+        await Task.CompletedTask;
+    }
+
+    private async Task ClearTranscriptAsync()
+    {
+        Messages.Clear();
+        DraftText = string.Empty;
+        ErrorMessage = string.Empty;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleComposerKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter" && args.CtrlKey)
+            await SendAsync();
+    }
+
+    private sealed record ChatMessageItem(string Role, string Text, bool IsUser)
+    {
+        public DateTimeOffset TimestampUtc { get; } = DateTimeOffset.UtcNow;
+
+        public DateTimeOffset TimestampLocal => TimestampUtc.ToLocalTime();
+
+        public string RoleClass => IsUser ? "user" : "assistant";
+    }
+}

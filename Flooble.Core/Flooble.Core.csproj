@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Flooble.Tools\Flooble.Tools.csproj" />
     <PackageReference Include="Microsoft.Agents.AI.Foundry" Version="1.11.1-preview.260625.1" />
     <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.11.1" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.9" />

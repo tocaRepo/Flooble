@@ -1,0 +1,255 @@
+@page "/workflows"
+
+<PageTitle>Flooble Workflows</PageTitle>
+
+<div class="page-grid workflow-grid">
+    <section class="hero-card">
+        <p class="eyebrow">Workflow runner</p>
+        <h1>Run YAML workflows in the browser</h1>
+        <p class="hero-copy">
+            Enter a workflow path such as <code>Flooble.Cli/review.workflow.yaml</code>, then run it and watch
+            emitted <code>WorkflowRunEvent</code> values appear live. Relative paths are resolved from the current
+            working directory and the repository root.
+        </p>
+        <div class="hero-actions">
+            <button class="ghost-button" type="button" @onclick="ResetRunStateAsync">Clear run state</button>
+            <a class="button-link" href="/chat">Back to chat</a>
+        </div>
+    </section>
+
+    <section class="panel workflow-panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Runner</p>
+                <h2>Workflow path</h2>
+            </div>
+            <div class="status-pill @(IsRunning ? "busy" : "ready")">
+                @(IsRunning ? "Running" : "Idle")
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <div class="banner error-banner" role="alert">@ErrorMessage</div>
+        }
+
+        <div class="workflow-form">
+            <label class="field-label" for="workflow-path">Path</label>
+            <input id="workflow-path"
+                   class="composer-input"
+                   type="text"
+                   placeholder="Flooble.Cli/review.workflow.yaml"
+                   @bind="WorkflowPath"
+                   @bind:event="oninput"
+                   @onkeydown="HandleWorkflowKeyDown"
+                   disabled="@IsRunning" />
+
+            <div class="composer-actions">
+                <button class="primary-button" type="button" @onclick="RunAsync" disabled="@(!CanRun)">Run</button>
+                <button class="secondary-button" type="button" @onclick="CancelAsync" disabled="@(!IsRunning)">Cancel</button>
+                <button class="secondary-button" type="button" @onclick="ResetRunStateAsync" disabled="@IsRunning && Events.Count == 0">Clear</button>
+            </div>
+        </div>
+
+        <div class="panel-stack">
+            <section class="subpanel">
+                <div class="subpanel-header">
+                    <h3>Live events</h3>
+                    <span class="subtle-count">@Events.Count event(s)</span>
+                </div>
+
+                <div class="event-list" aria-live="polite">
+                    @if (Events.Count == 0)
+                    {
+                        <div class="empty-state compact">
+                            <p>No workflow events yet.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var item in Events)
+                        {
+                            <article class="event-card">
+                                <div class="message-meta">
+                                    <span>@item.Kind</span>
+                                    <span>@item.TimestampUtc.ToLocalTime().ToString("HH:mm:ss")</span>
+                                </div>
+                                <div class="event-title">
+                                    @(string.IsNullOrWhiteSpace(item.StepId) ? "workflow" : item.StepId)
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(item.HandlerName))
+                                {
+                                    <div class="event-handler">Handler: @item.HandlerName</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(item.Message))
+                                {
+                                    <div class="event-message">@item.Message</div>
+                                }
+                            </article>
+                        }
+                    }
+                </div>
+            </section>
+
+            <section class="subpanel">
+                <div class="subpanel-header">
+                    <h3>Final result</h3>
+                    <span class="subtle-count">@(Result is null ? "No run yet" : Result.Name)</span>
+                </div>
+
+                @if (Result is null)
+                {
+                    <div class="empty-state compact">
+                        <p>Run a workflow to see its final outputs here.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="result-summary">
+                        <div><strong>Name:</strong> @Result.Name</div>
+                        <div><strong>Inputs:</strong> @Result.Input.Count</div>
+                        <div><strong>Steps:</strong> @Result.Steps.Count</div>
+                    </div>
+
+                    <div class="step-output-list">
+                        @foreach (var step in Result.Steps)
+                        {
+                            <article class="step-output-card">
+                                <div class="subpanel-header">
+                                    <h4>@step.Key</h4>
+                                </div>
+                                <pre>@step.Value.Output</pre>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        </div>
+    </section>
+
+    <aside class="sidebar-stack">
+        <ConfigHealthPanel />
+    </aside>
+</div>
+
+@code {
+    [Inject]
+    private FloobleRuntime Runtime { get; set; } = default!;
+
+    [Inject]
+    private IHostEnvironment HostEnvironment { get; set; } = default!;
+
+    private string WorkflowPath { get; set; } = Path.Combine("Flooble.Cli", "review.workflow.yaml");
+    private readonly List<WorkflowRunEvent> Events = new();
+    private CancellationTokenSource? _runCts;
+    private WorkflowRunResult? Result;
+    private string ErrorMessage { get; set; } = string.Empty;
+    private bool IsRunning { get; set; }
+
+    private bool CanRun => !IsRunning && !string.IsNullOrWhiteSpace(WorkflowPath);
+
+    private async Task RunAsync()
+    {
+        var path = WorkflowPath.Trim();
+        if (string.IsNullOrWhiteSpace(path) || IsRunning)
+            return;
+
+        var resolvedPath = ResolveWorkflowPath(path);
+        if (resolvedPath is null)
+        {
+            ErrorMessage = $"Workflow file not found: {path}";
+            return;
+        }
+
+        await ResetRunStateAsync();
+        WorkflowPath = path;
+        IsRunning = true;
+        StateHasChanged();
+
+        _runCts?.Cancel();
+        _runCts?.Dispose();
+        _runCts = new CancellationTokenSource();
+
+        try
+        {
+            Result = await Runtime.RunAsync(resolvedPath, OnWorkflowEventAsync, _runCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            ErrorMessage = "The workflow run was canceled.";
+        }
+        catch (FileNotFoundException fileNotFound)
+        {
+            ErrorMessage = $"Workflow file not found: {fileNotFound.FileName}";
+        }
+        catch (InvalidOperationException invalidOperation)
+        {
+            ErrorMessage = invalidOperation.Message;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = string.IsNullOrWhiteSpace(ex.Message)
+                ? "The workflow run failed."
+                : ex.Message;
+        }
+        finally
+        {
+            IsRunning = false;
+            _runCts.Dispose();
+            _runCts = null;
+            StateHasChanged();
+        }
+    }
+
+    private ValueTask OnWorkflowEventAsync(WorkflowRunEvent workflowRunEvent, CancellationToken cancellationToken)
+    {
+        return new ValueTask(InvokeAsync(() =>
+        {
+            Events.Add(workflowRunEvent);
+            StateHasChanged();
+        }));
+    }
+
+    private async Task CancelAsync()
+    {
+        _runCts?.Cancel();
+        await Task.CompletedTask;
+    }
+
+    private async Task ResetRunStateAsync()
+    {
+        Result = null;
+        ErrorMessage = string.Empty;
+        Events.Clear();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleWorkflowKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter")
+            await RunAsync();
+    }
+
+    private string? ResolveWorkflowPath(string path)
+    {
+        var candidates = new List<string>();
+
+        if (Path.IsPathRooted(path))
+        {
+            candidates.Add(path);
+        }
+        else
+        {
+            candidates.Add(Path.GetFullPath(path));
+            candidates.Add(Path.GetFullPath(Path.Combine(HostEnvironment.ContentRootPath, "..", path)));
+        }
+
+        foreach (var candidate in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        return null;
+    }
+}
