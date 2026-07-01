@@ -1,5 +1,6 @@
 using Flooble.Core;
 using Flooble.Web.Components;
+using Flooble.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,6 +11,7 @@ builder.Configuration.AddJsonFile(cliConfigurationPath, optional: true, reloadOn
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 builder.Services.AddScoped<AgentChatService>();
+builder.Services.AddScoped<ChatSessionState>();
 builder.Services.AddScoped<FloobleRuntime>();
 
 var app = builder.Build();

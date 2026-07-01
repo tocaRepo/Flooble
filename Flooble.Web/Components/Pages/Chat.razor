@@ -33,7 +33,7 @@
         }
 
         <div class="transcript" aria-live="polite">
-            @if (Messages.Count == 0)
+            @if (ChatSession.Messages.Count == 0)
             {
                 <div class="empty-state">
                     <h3>No messages yet</h3>
@@ -42,12 +42,12 @@
             }
             else
             {
-                @foreach (var message in Messages)
+                @foreach (var message in ChatSession.Messages)
                 {
-                    <article class="message-card @message.RoleClass">
+                    <article class="message-card @GetRoleClass(message)">
                         <div class="message-meta">
-                            <span>@message.Role</span>
-                            <span>@message.TimestampLocal.ToString("HH:mm")</span>
+                            <span>@GetRoleLabel(message)</span>
+                            <span>@ToLocalTime(message).ToString("HH:mm")</span>
                         </div>
                         <div class="message-body">@message.Text</div>
                     </article>
@@ -69,7 +69,7 @@
             <div class="composer-actions">
                 <button class="primary-button" type="submit" disabled="@(!CanSend)">Send</button>
                 <button class="secondary-button" type="button" @onclick="CancelAsync" disabled="@(!IsBusy)">Cancel</button>
-                <button class="secondary-button" type="button" @onclick="ClearTranscriptAsync" disabled="@IsBusy && Messages.Count == 0">Clear</button>
+                <button class="secondary-button" type="button" @onclick="ClearTranscriptAsync" disabled="@IsBusy && ChatSession.Messages.Count == 0">Clear</button>
             </div>
         </form>
 
@@ -87,7 +87,9 @@
     [Inject]
     private AgentChatService AgentChatService { get; set; } = default!;
 
-    private readonly List<ChatMessageItem> Messages = new();
+    [Inject]
+    private ChatSessionState ChatSession { get; set; } = default!;
+
     private CancellationTokenSource? _requestCts;
     private string DraftText { get; set; } = string.Empty;
     private string ErrorMessage { get; set; } = string.Empty;
@@ -101,7 +103,7 @@
         if (string.IsNullOrWhiteSpace(text) || IsBusy)
             return;
 
-        Messages.Add(new ChatMessageItem("You", text, true));
+        ChatSession.AddUserMessage(text);
         DraftText = string.Empty;
         ErrorMessage = string.Empty;
         IsBusy = true;
@@ -113,12 +115,12 @@
 
         try
         {
-            var response = await AgentChatService.SendAsync(text, _requestCts.Token);
-            Messages.Add(new ChatMessageItem("Flooble", response, false));
+            var response = await AgentChatService.SendConversationAsync(ChatSession.Messages, _requestCts.Token);
+            ChatSession.AddAssistantMessage(response);
         }
         catch (OperationCanceledException)
         {
-            ErrorMessage = "The request was canceled.";
+            ErrorMessage = "Request canceled.";
         }
         catch (FileNotFoundException fileNotFound)
         {
@@ -141,7 +143,7 @@
         finally
         {
             IsBusy = false;
-            _requestCts.Dispose();
+            _requestCts?.Dispose();
             _requestCts = null;
             StateHasChanged();
         }
@@ -155,7 +157,7 @@
 
     private async Task ClearTranscriptAsync()
     {
-        Messages.Clear();
+        ChatSession.Clear();
         DraftText = string.Empty;
         ErrorMessage = string.Empty;
         await InvokeAsync(StateHasChanged);
@@ -167,12 +169,25 @@
             await SendAsync();
     }
 
-    private sealed record ChatMessageItem(string Role, string Text, bool IsUser)
+    private static string GetRoleClass(ChatMessageRecord message)
     {
-        public DateTimeOffset TimestampUtc { get; } = DateTimeOffset.UtcNow;
-
-        public DateTimeOffset TimestampLocal => TimestampUtc.ToLocalTime();
-
-        public string RoleClass => IsUser ? "user" : "assistant";
+        return NormalizeRole(message.Role) switch
+        {
+            "assistant" => "assistant",
+            _ => "user"
+        };
     }
+
+    private static string GetRoleLabel(ChatMessageRecord message)
+    {
+        return NormalizeRole(message.Role) switch
+        {
+            "assistant" => "Flooble",
+            _ => "You"
+        };
+    }
+
+    private static DateTimeOffset ToLocalTime(ChatMessageRecord message) => message.TimestampUtc.ToLocalTime();
+
+    private static string NormalizeRole(string role) => role.Trim().ToLowerInvariant();
 }

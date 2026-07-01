@@ -74,12 +74,17 @@ the Windows-only WPF app.
    dotnet run --project Flooble.Web
    ```
 
-   `Flooble.Web` is the recommended cross-platform GUI. It runs in the browser
-   and uses standard ASP.NET Core configuration sources:
+`Flooble.Web` is the recommended cross-platform GUI. It runs in the browser
+and uses standard ASP.NET Core configuration sources:
 
    - `appsettings.json`
-   - `appsettings.Development.json`
-   - environment variables
+- `appsettings.Development.json`
+- environment variables
+
+The `/chat` page keeps a session-scoped in-memory transcript so follow-up
+questions can use prior turns in the same browser circuit. The transcript is
+cleared when you click **Clear chat** and is trimmed to keep only the most
+recent messages.
 
    For local development, you can copy or mirror the settings from
    `Flooble.Cli/configuration.json` into `Flooble.Web/appsettings.Development.json`
