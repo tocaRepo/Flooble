@@ -1,0 +1,37 @@
+@page "/"
+
+<PageTitle>Flooble</PageTitle>
+
+<div class="page-grid home-grid">
+    <section class="hero-card">
+        <p class="eyebrow">Flooble Web</p>
+        <h1>The recommended cross-platform GUI for Flooble</h1>
+        <p class="hero-copy">
+            Use the browser-based chat and workflow runner on Windows, Linux, or macOS without relying on WPF.
+        </p>
+        <div class="hero-actions">
+            <a class="primary-button" href="/chat">Open chat</a>
+            <a class="secondary-button" href="/workflows">Open workflows</a>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <div>
+                <p class="eyebrow">Start here</p>
+                <h2>What Flooble Web gives you</h2>
+            </div>
+        </div>
+
+        <ul class="feature-list">
+            <li>Shared <code>AgentChatService</code> and <code>FloobleRuntime</code> integration.</li>
+            <li>Live workflow events from <code>WorkflowRunEvent</code>.</li>
+            <li>Configuration health checks without exposing secrets.</li>
+            <li>Optional reuse of <code>Flooble.Cli/configuration.json</code> during local development.</li>
+        </ul>
+    </section>
+
+    <aside class="sidebar-stack">
+        <ConfigHealthPanel />
+    </aside>
+</div>

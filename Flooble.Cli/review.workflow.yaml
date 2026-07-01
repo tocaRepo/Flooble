@@ -1,0 +1,64 @@
+name: repository-review
+input:
+  root: .
+  output_path: report.html
+
+steps:
+  - id: list_workspace
+    tool: list_files
+    with:
+      path: "${input.root}"
+      max_depth: "2"
+      ignore: "bin,obj,.git"
+
+  - id: file_metadata
+    tool: file_info
+    with:
+      paths: |-
+        README.md
+        Flooble.Cli/Program.cs
+        Flooble.Cli/configuration.json
+        Flooble.Cli/Flooble.Cli.csproj
+        Flooble.Cli/tools.workflow.yaml
+        Flooble.Cli/example.workflow.yaml
+        Flooble.Core/Agent.cs
+        Flooble.Core/WorkflowDefinition.cs
+        Flooble.Core/WorkflowHandlers.cs
+        Flooble.Core/WorkflowInterpreter.cs
+        Flooble.Core/WorkflowLoader.cs
+
+  - id: signal_search
+    tool: search_text
+    with:
+      path: "${input.root}"
+      query: "API_KEY|workflowPath|tools.workflow.yaml|example.workflow.yaml|allowedPaths"
+      mode: regex
+      max_results: "25"
+      ignore: "bin,obj,.git"
+
+  - id: review
+    agent: |-
+      Review the Flooble repository and produce a polished HTML report.
+      Focus on:
+      1. Overall architecture and maintainability.
+      2. Workflow runner behavior and file access controls.
+      3. Documentation and configuration gaps.
+      4. Clear, practical next steps.
+
+      Output only HTML. Do not wrap the response in markdown fences.
+    with:
+      text: |-
+        Repository tree:
+        ${steps.list_workspace.output}
+
+        File metadata:
+        ${steps.file_metadata.output}
+
+        Search signals:
+        ${steps.signal_search.output}
+
+  - id: write_report
+    tool: write_file
+    with:
+      path: "${input.output_path}"
+      content: "${steps.review.output}"

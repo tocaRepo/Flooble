@@ -1,0 +1,96 @@
+<section class="panel config-panel">
+    <div class="panel-header">
+        <div>
+            <p class="eyebrow">Configuration</p>
+            <h2>Health check</h2>
+        </div>
+    </div>
+
+    <div class="health-grid" role="list" aria-label="Configuration health">
+        <div class="health-item" role="listitem">
+            <span class="health-label">API endpoint</span>
+            <span class="health-value @(HasApiEndpoint ? "ok" : "missing")">
+                @(HasApiEndpoint ? ApiEndpoint! : "Missing")
+            </span>
+        </div>
+        <div class="health-item" role="listitem">
+            <span class="health-label">API key</span>
+            <span class="health-value @(HasApiKey ? "ok" : "missing")">
+                @(HasApiKey ? $"Available via {ApiKeySource}" : "Missing")
+            </span>
+        </div>
+        <div class="health-item" role="listitem">
+            <span class="health-label">Read permissions</span>
+            <span class="health-value @(HasReadPermissions ? "ok" : "missing")">
+                @(HasReadPermissions ? ReadPermissionsSummary : "Missing")
+            </span>
+        </div>
+        <div class="health-item" role="listitem">
+            <span class="health-label">Write permissions</span>
+            <span class="health-value @(HasWritePermissions ? "ok" : "missing")">
+                @(HasWritePermissions ? WritePermissionsSummary : "Missing")
+            </span>
+        </div>
+        <div class="health-item" role="listitem">
+            <span class="health-label">Environment</span>
+            <span class="health-value ok">@EnvironmentName</span>
+        </div>
+    </div>
+</section>
+
+@code {
+    [Inject]
+    private IConfiguration Configuration { get; set; } = default!;
+
+    [Inject]
+    private IHostEnvironment HostEnvironment { get; set; } = default!;
+
+    private string? ApiEndpoint => Configuration["Agent:API_ENDPOINT"]?.Trim();
+
+    private string? ConfigApiKey => Configuration["Agent:API_KEY"]?.Trim();
+
+    private string? GroqApiKey => Environment.GetEnvironmentVariable("GROQ_API_KEY")?.Trim();
+
+    private bool HasApiEndpoint => !string.IsNullOrWhiteSpace(ApiEndpoint);
+
+    private bool HasApiKey => !string.IsNullOrWhiteSpace(ConfigApiKey) || !string.IsNullOrWhiteSpace(GroqApiKey);
+
+    private string ApiKeySource => !string.IsNullOrWhiteSpace(ConfigApiKey)
+        ? "configuration"
+        : "GROQ_API_KEY";
+
+    private bool HasReadPermissions => TryGetPermissionSummary("Agent:ReadPermissions", out _);
+
+    private bool HasWritePermissions => TryGetPermissionSummary("Agent:WritePermissions", out _);
+
+    private string ReadPermissionsSummary => TryGetPermissionSummary("Agent:ReadPermissions", out var summary) ? summary : "Missing";
+
+    private string WritePermissionsSummary => TryGetPermissionSummary("Agent:WritePermissions", out var summary) ? summary : "Missing";
+
+    private string EnvironmentName => string.IsNullOrWhiteSpace(HostEnvironment.EnvironmentName)
+        ? "Unknown"
+        : HostEnvironment.EnvironmentName;
+
+    private bool TryGetPermissionSummary(string path, out string summary)
+    {
+        var section = Configuration.GetSection(path);
+        var type = section["type"]?.Trim();
+        var allowedPaths = section.GetSection("allowedPaths").Get<string[]>()?.Where(item => !string.IsNullOrWhiteSpace(item)).ToArray() ?? [];
+
+        if (!section.GetChildren().Any() && string.IsNullOrWhiteSpace(type) && allowedPaths.Length == 0)
+        {
+            summary = "";
+            return false;
+        }
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(type))
+            parts.Add(type);
+
+        if (allowedPaths.Length > 0)
+            parts.Add($"{allowedPaths.Length} path{(allowedPaths.Length == 1 ? "" : "s")}");
+
+        summary = parts.Count > 0 ? string.Join(", ", parts) : "Configured";
+        return true;
+    }
+}

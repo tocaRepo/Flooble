@@ -1,6 +1,4 @@
-﻿using Flooble.Core;
-using Flooble.Tools;
-using Microsoft.Extensions.AI;
+using Flooble.Core;
 using Microsoft.Extensions.Configuration;
 
 var configuration = new ConfigurationBuilder()
@@ -8,37 +6,19 @@ var configuration = new ConfigurationBuilder()
     .AddJsonFile("configuration.json", optional: false, reloadOnChange: false)
     .Build();
 
-var readTools = new ReadTools(configuration);
-var writeTools = new WriteTools(configuration);
-var readFileTool = AIFunctionFactory.Create(readTools.ReadFile);
-var writeFileTool = AIFunctionFactory.Create(writeTools.WriteFile);
+var runtime = new FloobleRuntime(configuration);
 
-var workflowPath = Path.Combine(AppContext.BaseDirectory, "example.workflow.yaml");
-var workflow = WorkflowLoader.LoadFromFile(workflowPath);
+var workflowName = args.FirstOrDefault();
+var workflowPath = string.IsNullOrWhiteSpace(workflowName)
+    ? Path.Combine(AppContext.BaseDirectory, "review.workflow.yaml")
+    : Path.IsPathRooted(workflowName)
+        ? workflowName
+        : Path.Combine(AppContext.BaseDirectory, workflowName);
 
-var handlers = WorkflowHandlers.CreateDefault(
-    readTools.ReadFile,
-    writeTools.WriteFile,
-    async (instructions, text, cancellationToken) =>
-    {
-    
-        var agent = new Agent(
-            configuration,
-            "openai/gpt-oss-120b",
-            instructions,
-            [readFileTool, writeFileTool]);
+if (!File.Exists(workflowPath))
+    throw new FileNotFoundException($"Workflow file not found: {workflowPath}", workflowPath);
 
-        var userMessage = new ChatMessage(
-            ChatRole.User,
-            text);
-
-        var response = await agent.GetAgent().RunAsync(userMessage, cancellationToken: cancellationToken);
-        return response.Text;
-    });
-
-var interpreter = new WorkflowInterpreter(handlers);
-
-var result = await interpreter.ExecuteAsync(workflow);
+var result = await runtime.RunAsync(workflowPath);
 
 foreach (var step in result.Steps)
 {

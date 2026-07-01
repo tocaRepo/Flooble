@@ -3,7 +3,7 @@
         "API_ENDPOINT":"https://api.groq.com/openai/v1",
         "ReadPermissions":{
             "type":"local",
-            "allowedPaths":["."]
+            "allowedPaths":[".","..","D:\\agentic-framework\\Flooble"]
         },
         "WritePermissions":{
             "type":"local",
